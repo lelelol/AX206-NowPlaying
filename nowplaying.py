@@ -1,14 +1,14 @@
 """Publica a mídia em reprodução no Windows para o AIDA64.
 
 Registro HKCU\\Software\\FinalWire\\AIDA64\\ImportValues:
-  Str1/4-7 = título e Str2/8 = artista em vários tamanhos (só o que cabe fica preenchido),
+  Str1/4-7 = título, Str2/8 = artista, Str9 = "Nada tocando" em vários tamanhos (só o que cabe fica preenchido),
   Str3 = Tocando/Pausado; pausado por IDLE_AFTER s ou sem mídia -> "Nada tocando"
   (no AIDA: SREGVALSn). Geometria e fontes vêm de patch_layout.py.
 Capa: cover.png ao lado deste script.
 """
 import asyncio, io, os, sys, time, winreg
 from PIL import Image, ImageChops, ImageDraw, ImageFont
-from patch_layout import COVER_SIZE as SIZE, TEXT_W, TITLE, ARTIST
+from patch_layout import COVER_SIZE as SIZE, TEXT_W, TITLE, ARTIST, IDLE
 from winrt.windows.media.control import (
     GlobalSystemMediaTransportControlsSessionManager as Manager,
     GlobalSystemMediaTransportControlsSessionPlaybackStatus as Status,
@@ -144,6 +144,7 @@ async def main():
                 set_reg("Str3", "Tocando" if playing else "Pausado")
                 key = (s.source_app_user_model_id, p.title, p.artist)
                 if key != last:  # só trabalha quando a faixa muda
+                    set_reg(IDLE, "")
                     set_lines(p.title, TITLE)
                     set_lines(p.artist, ARTIST)
                     base = load_cover(await read_thumb(p.thumbnail))
@@ -152,7 +153,7 @@ async def main():
                     save_cover(base, paused=not playing)
                     shown = (key, playing)
             elif last != ():
-                set_lines("Nada tocando", TITLE); set_lines("", ARTIST); set_reg("Str3", "")
+                set_lines("", TITLE); set_lines("", ARTIST); set_reg("Str3", ""); set_reg(IDLE, "Nada tocando")
                 save_cover(idle_cover())
                 last, shown = (), None
         except Exception as e:  # sessão some no meio da leitura etc.: tenta de novo no próximo ciclo

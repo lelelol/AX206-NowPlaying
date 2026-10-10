@@ -21,6 +21,7 @@ TEXT_X, TEXT_W = 104, 201
 TITLE = [dict(font="calibrib.ttf", pt=20, lines=("Str5",), y=247, step=0),
          dict(font="calibrib.ttf", pt=16, lines=("Str6", "Str7"), y=239, step=22),
          dict(font="calibrib.ttf", pt=13, lines=("Str1", "Str4"), y=242, step=19)]
+IDLE = "Str9"  # "Nada tocando": cinza, peso normal, no lugar do título grande
 ARTIST = [dict(font="calibri.ttf", pt=13, lines=("Str8",), y=283, step=0),
           dict(font="calibri.ttf", pt=11, lines=("Str2",), y=284, step=0)]
 
@@ -50,7 +51,8 @@ NEW_ITEMS = [
     img(ASSETS + r"\Fps-Icon.png", 18, 22),                  # FPS sobe para o canto, ao lado do relógio
     sensor("SRTSSFPS", 42, 17, 16, wid=80, unit=" FPS"),
     img(COVER, COVER_X, COVER_Y),
-    sensor("SREGVALS3", TEXT_X, 225, 10, color=GREY),        # Tocando / Pausado / Nada tocando
+    sensor("SREGVALS3", TEXT_X, 225, 10, color=GREY),        # Tocando / Pausado
+    sensor("SREGVALS" + IDLE[3:], TEXT_X, TITLE[0]["y"], TITLE[0]["pt"], color=GREY),  # "Nada tocando"
     *[it for spec in TITLE for it in text_lines(spec, WHITE, "100")],
     *[it for spec in ARTIST for it in text_lines(spec, GREY, "000")],
 ]
