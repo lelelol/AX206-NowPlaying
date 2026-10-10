@@ -98,6 +98,16 @@ def play_overlay(img):
     return Image.alpha_composite(img.convert("RGBA"), layer).convert("RGB")
 
 
+def idle_cover():
+    """Sem mídia: quadrado cinza escuro com nota musical (desenhado em 4x para sair suave)."""
+    s = SIZE * 4
+    img = Image.new("RGB", (s, s))
+    d = ImageDraw.Draw(img)
+    d.rounded_rectangle((0, 0, s - 1, s - 1), radius=s // 10, fill=(28, 28, 28), outline=(62, 62, 62), width=4)
+    d.text((s / 2, s / 2), "♪", font=ImageFont.truetype("seguisym.ttf", int(s * 0.6)), fill=(110, 110, 110), anchor="mm")
+    return img.resize((SIZE, SIZE), Image.LANCZOS)
+
+
 def save_cover(img, paused=False):
     img = play_overlay(img) if paused else img
     tmp = COVER + ".tmp"
@@ -138,8 +148,8 @@ async def main():
                     save_cover(base, paused=not playing)
                     shown = (key, playing)
             elif last != ():
-                set_lines("", TITLE); set_lines("", ARTIST); set_reg("Str3", "Nada tocando")
-                save_cover(load_cover(None))
+                set_lines("Nada tocando", TITLE); set_lines("", ARTIST); set_reg("Str3", "")
+                save_cover(idle_cover())
                 last, shown = (), None
         except Exception as e:  # sessão some no meio da leitura etc.: tenta de novo no próximo ciclo
             print("erro:", e)
