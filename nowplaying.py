@@ -7,7 +7,7 @@ Registro HKCU\\Software\\FinalWire\\AIDA64\\ImportValues:
 Capa: cover.png ao lado deste script.
 """
 import asyncio, io, os, sys, winreg
-from PIL import Image, ImageChops, ImageFont
+from PIL import Image, ImageChops, ImageDraw, ImageFont
 from patch_layout import COVER_SIZE as SIZE, TEXT_W, TITLE, ARTIST
 from winrt.windows.media.control import (
     GlobalSystemMediaTransportControlsSessionManager as Manager,
@@ -79,9 +79,27 @@ def square(img):
     return img.crop((l, t, l + s, t + s))
 
 
-def save_cover(data):
+def load_cover(data):
     img = square(Image.open(io.BytesIO(data)).convert("RGB")) if data else Image.new("RGB", (1, 1))
-    img = img.resize((SIZE, SIZE), Image.LANCZOS)
+    return img.resize((SIZE, SIZE), Image.LANCZOS)
+
+
+def play_overlay(img):
+    """Escurece a arte e desenha um botão de play no centro (desenhado em 4x para sair suave)."""
+    k, s = 4, SIZE * 4
+    layer = Image.new("RGBA", (s, s), (0, 0, 0, 90))
+    d = ImageDraw.Draw(layer)
+    r = s * 0.24
+    c = s / 2
+    d.ellipse((c - r, c - r, c + r, c + r), fill=(0, 0, 0, 150), outline=(255, 255, 255, 230), width=2 * k)
+    t = r * 0.5
+    d.polygon([(c - t * 0.7, c - t), (c - t * 0.7, c + t), (c + t, c)], fill=(255, 255, 255, 255))
+    layer = layer.resize((SIZE, SIZE), Image.LANCZOS)
+    return Image.alpha_composite(img.convert("RGBA"), layer).convert("RGB")
+
+
+def save_cover(img, paused=False):
+    img = play_overlay(img) if paused else img
     tmp = COVER + ".tmp"
     img.save(tmp, "PNG")
     os.replace(tmp, COVER)  # troca atômica: o AIDA nunca lê arquivo pela metade
@@ -100,7 +118,7 @@ async def read_thumb(ref):
 
 async def main():
     mgr = await Manager.request_async()
-    last = None
+    last, base, shown = None, None, None
     while True:
         try:
             sessions = list(mgr.get_sessions())
@@ -114,12 +132,15 @@ async def main():
                 if key != last:  # só trabalha quando a faixa muda
                     set_lines(p.title, TITLE)
                     set_lines(p.artist, ARTIST)
-                    save_cover(await read_thumb(p.thumbnail))
+                    base = load_cover(await read_thumb(p.thumbnail))
                     last = key
+                if (key, playing) != shown:  # faixa nova ou play/pause: redesenha a capa
+                    save_cover(base, paused=not playing)
+                    shown = (key, playing)
             elif last != ():
                 set_lines("", TITLE); set_lines("", ARTIST); set_reg("Str3", "Nada tocando")
-                save_cover(None)
-                last = ()
+                save_cover(load_cover(None))
+                last, shown = (), None
         except Exception as e:  # sessão some no meio da leitura etc.: tenta de novo no próximo ciclo
             print("erro:", e)
         await asyncio.sleep(INTERVAL)
@@ -136,5 +157,9 @@ if __name__ == "__main__":
         assert long[small[-1]].endswith("…") and not any(long[k] for k in big + mid), long
         assert fit("x" * 200, TITLE)[small[-1]].endswith("…")
         assert not any(fit("", TITLE).values())
+        art = Image.new("RGB", (SIZE, SIZE), (200, 40, 40))
+        ov = play_overlay(art)
+        c = ov.getpixel((SIZE // 2, SIZE // 2))
+        assert min(c) > 200 and ov.getpixel((2, 2))[0] < 200, (c, ov.getpixel((2, 2)))  # play branco, arte escurecida
         print("ok"); sys.exit()
     asyncio.run(main())
