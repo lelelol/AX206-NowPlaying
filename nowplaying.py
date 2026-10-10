@@ -2,11 +2,11 @@
 
 Registro HKCU\\Software\\FinalWire\\AIDA64\\ImportValues:
   Str1/4-7 = título e Str2/8 = artista em vários tamanhos (só o que cabe fica preenchido),
-  Str3 = Tocando/Pausado/Nada tocando
+  Str3 = Tocando/Pausado; pausado por IDLE_AFTER s ou sem mídia -> "Nada tocando"
   (no AIDA: SREGVALSn). Geometria e fontes vêm de patch_layout.py.
 Capa: cover.png ao lado deste script.
 """
-import asyncio, io, os, sys, winreg
+import asyncio, io, os, sys, time, winreg
 from PIL import Image, ImageChops, ImageDraw, ImageFont
 from patch_layout import COVER_SIZE as SIZE, TEXT_W, TITLE, ARTIST
 from winrt.windows.media.control import (
@@ -16,6 +16,7 @@ from winrt.windows.media.control import (
 from winrt.windows.storage.streams import DataReader
 
 INTERVAL = 1.0      # s entre leituras
+IDLE_AFTER = 60     # s pausado até virar "Nada tocando"
 DIR = os.path.dirname(os.path.abspath(__file__))
 COVER = os.path.join(DIR, "cover.png")
 KEY = winreg.CreateKey(winreg.HKEY_CURRENT_USER, r"Software\FinalWire\AIDA64\ImportValues")
@@ -128,15 +129,18 @@ async def read_thumb(ref):
 
 async def main():
     mgr = await Manager.request_async()
-    last, base, shown = None, None, None
+    last, base, shown, paused_since = None, None, None, None
     while True:
         try:
             sessions = list(mgr.get_sessions())
             s = next((x for x in sessions if x.get_playback_info().playback_status == Status.PLAYING), None) \
                 or mgr.get_current_session()
+            playing = bool(s) and s.get_playback_info().playback_status == Status.PLAYING
+            paused_since = None if playing else (paused_since or time.monotonic())
+            if s and not playing and time.monotonic() - paused_since >= IDLE_AFTER:
+                s = None  # pausado há muito tempo: mostra "Nada tocando"
             if s:
                 p = await s.try_get_media_properties_async()
-                playing = s.get_playback_info().playback_status == Status.PLAYING
                 set_reg("Str3", "Tocando" if playing else "Pausado")
                 key = (s.source_app_user_model_id, p.title, p.artist)
                 if key != last:  # só trabalha quando a faixa muda
